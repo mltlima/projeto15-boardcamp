@@ -22,12 +22,14 @@ export async function getCategories(req, res) {
     //const { limit, offset, order, desc } = req.query;
 
     try {
+        let offset = "";    
         if (req.query.offset){
-            const offset = `OFFSET ${req.query.offset}`;
+            offset = `OFFSET ${req.query.offset}`;
         }
 
+        let limit = "";
         if (req.query.limit) {
-            const limit = `LIMIT ${req.query.limit}`;
+            limit = `LIMIT ${req.query.limit}`;
         }
 
         const sortByFilter = {

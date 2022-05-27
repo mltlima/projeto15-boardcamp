@@ -6,7 +6,7 @@ import { addCategory, getCategories } from '../controllers/categoriesController.
 
 const categoriesRouter = Router();
 
-categoriesRouter.get("/", getCategories);
-categoriesRouter.post("/", validateMiddleware(categoriesSchema), addCategory);
+categoriesRouter.get("/categories", getCategories);
+categoriesRouter.post("/categories", validateMiddleware(categoriesSchema), addCategory);
 
 export default categoriesRouter;

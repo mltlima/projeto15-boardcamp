@@ -1,19 +1,9 @@
 import connection from "../db.js";
 
 export async function getGames(req, res) {
-    const { name } = req.query;
+    const { name, offset, limit } = req.query;
 
     try {
-        let offset = "";
-        if (req.query.offset) {
-            offset = `OFFSET ${req.query.offset}`;
-        }
-
-        let limit = "";
-        if (req.query.limit) {
-            limit = `LIMIT ${req.query.limit}`;
-        }
-
         const sortByFilter = {
             id: 1,
             name: 2,
@@ -35,12 +25,12 @@ export async function getGames(req, res) {
         if (name) {
             const games = await connection.query(`SELECT games.*, categories.name AS "categoryName" FROM games
              JOIN categories ON categories.id = games."categoryId" WHERE LOWER games.name 
-             LIKE LOWER $1 ${order} ${limit} ${offset}`, [`%${name}%`]);
+             LIKE LOWER $1 ${order} LIMIT $2 OFFSET $3`, [`%${name}%`, limit || null, offset || 0]);
 
              res.send(games.rows);
         } else {
             const games = await connection.query(`SELECT games.*, categories.name AS "categoryName" FROM games
-                JOIN categories ON categories.id = games."categoryId" ${order} ${limit} ${offset}`);
+                JOIN categories ON categories.id = games."categoryId" ${order} LIMIT $1 OFFSET $2`, [limit || null, offset || 0]);
 
                 res.send(games.rows);
         }

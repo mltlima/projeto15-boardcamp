@@ -3,62 +3,31 @@ import dayjs from 'dayjs';
 import connection from "../db.js";
 
 export async function getRentals (req, res) {
-    const { customerId, gameId, status, startDate } = req.query;
+    const { customerId, gameId, offset, limit } = req.query;
+    
+    try{
+        const rentals = await connection.query(`
+        SELECT 
+            rentals.*,
+            jsonb_build_object('name', customers.name, 'id', customers.id) AS customer,
+            jsonb_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) AS game
+        FROM games 
+        JOIN rentals ON games.id = rentals."gameId" 
+        JOIN customers ON rentals."customerId" = customers.id
+        JOIN categories ON games."categoryId" = categories.id
+        LIMIT $1 OFFSET $2
+        ;`, [limit || null, offset || 0]);
 
-    try {
-        let offset = "";
-        if (req.query.offset) {
-            offset = `OFFSET ${req.query.offset}`;
+        if(customerId && gameId) {
+            return res.send(rentals.rows.filter(row => row.customerId === parseInt(customerId) && row.gameId === parseInt(gameId)));
         }
 
-        let limit = "";
-        if (req.query.limit) {
-            limit = `LIMIT ${req.query.limit}`;
+        if(customerId || gameId) {
+            return res.send(rentals.rows.filter(row => customerId ? row.customerId === parseInt(customerId) : row.gameId === parseInt(gameId)));
         }
-
-        const sortByFilter = {
-            id: 1,
-            customerId: 2,
-            gameId: 3,
-            rentDate: 4,
-            daysRented: 5,
-            returnDate: 6,
-            originalPrice: 7,
-            delayFee: 8
-        }
-
-        let order = '';
-        if (req.query.order) {
-            order = `ORDER BY ${sortByFilter[req.query.order]}`;
-        }
-
-        if (Boolean(req.query.desc) && req.query.order) {
-            order = `ORDER BY ${sortByFilter[req.query.order]} DESC`;
-        }
-
-        if (customerId) {
-            const rentals = await connection.query({ text: `SELECT rentals.*, "customersId", customers.name AS "customersName",
-            games.id AS "gamesId", games.name AS "gamesName", games."categoryId", categories.name AS "categoryName"
-            FROM rentals JOIN customers ON customers.id=rentals."customerId" JOIN games ON games.id=rentals."gameId"
-            JOIN categories ON categories.id=games."categoryId" WHERE rentals."customerId"=$1 ${order} ${offset} ${limit}`,
-            rowMode: 'array' }, [customerId]);
-        }
-
-        const games = await connection.query(`SELECT games.id, games."categoryId", games.name AS "name",
-            categories.name AS "categoryName" FROM games JOIN categories ON games."categoryId" = categories.id
-        `)
-
-        const customers = await connection.query(`SELECT id, name FROM customers`);
-
-        rentals.rows.map(rental => ({
-            ...rental, customer: customers.find(customer => customer.id === rental.customerId),
-            game: arrGames.find(game => game.id === rental.gameId)
-        }))
 
         res.send(rentals.rows);
-
-    } catch (error) {
-        console.log(error);
+    } catch {
         res.sendStatus(500);
     }
 }
@@ -78,12 +47,12 @@ export async function addRental(req, res) {
         stock.rows.filter(element => element.delayFee === null && rentCounter++);
 
         const game = await connection.query(`SELECT * FROM games WHERE id = $1`, [gameId]);
-
+        
         if (rentCounter >= game.rows[0].stockTotal) {
             res.sendStatus(400);
         }
-            
-        const price = game.rows[0].price * daysRented;
+
+        const originalPrice = game.rows[0].pricePerDay * parseInt(daysRented);
 
         const customer = await connection.query(`SELECT * FROM customers WHERE id = $1`, [customerId]);
         if (customer.rows.length === 0 || game.rows.length === 0) {
@@ -91,7 +60,7 @@ export async function addRental(req, res) {
         }
 
         await connection.query(`INSERT INTO rentals ( "customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee" ) VALUES ( $1, $2, $3, $4, $5, $6, $7 )
-        `, [customerId, gameId, rentDate, daysRented, returnDate, price, delayFee])
+        `, [customerId, gameId, rentDate, daysRented, returnDate, originalPrice, delayFee])
 
         res.sendStatus(201);
 
